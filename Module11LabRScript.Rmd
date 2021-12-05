@@ -1,0 +1,133 @@
+---
+title: "On_IR_Statistical_Approaches"
+author: "Tamer Abdou, PhD"
+date: "20/10/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+#Install and load required packages
+```{r}
+#Install required packages
+#https://cran.r-project.org/web/packages/shiny/index.html
+install.packages("shiny", repos = 'http://cran.us.r-project.org')
+#https://cran.r-project.org/web/packages/shinythemes/index.html
+install.packages("shinythemes", repos = 'http://cran.us.r-project.org')
+#https://cran.r-project.org/web/packages/arules/index.html
+install.packages("arules", repos = 'http://cran.us.r-project.org')
+#https://cran.r-project.org/web/packages/arulesViz/index.html
+install.packages("arulesViz", repos = 'http://cran.us.r-project.org')
+#https://cran.r-project.org/web/packages/gtools/index.html
+install.packages("gtools", repos = 'http://cran.us.r-project.org')
+#https://cran.r-project.org/web/packages/gtools/index.html
+install.packages("klaR", repos = 'http://cran.us.r-project.org')
+```
+
+```{r}
+lstPackages <- c('shiny', 'shinythemes', 'arules', 'arulesViz', 'gtools', 'klaR')
+lapply(lstPackages, library, character.only = TRUE)
+```
+
+
+## Read The Sample Data
+```{r}
+sampleData <- read.csv(file = '/Users/yemi/Desktop/MODULE 10/SampleObesityData.csv', header = T, stringsAsFactors=T)
+summary(sampleData)
+str(sampleData)
+```
+
+
+## Explore the induced knowledge
+```{r}
+normalWeightRules <- arules::apriori(sampleData,
+                        parameter = 
+                            list(support = 0.04, confidence = 0.5),
+                        appearance =
+                            list(rhs=c("Obesity_Level=Normal_Weight")))
+
+arulesViz::ruleExplorer(normalWeightRules)
+```
+
+## Run Shiny App Corpora
+```{r}
+obesityIIIRules <- arules::apriori(sampleData,
+                        parameter = 
+                            list(support = 0.15, confidence = 0.99),
+                        appearance =
+                            list(rhs=c("Obesity_Level=Obesity_Type_III")))
+
+arulesViz::ruleExplorer(obesityIIIRules)
+```
+
+
+
+## Decision Tree
+```{r}
+library("rpart")
+library('rpart.plot')
+
+classData <- subset(sampleData, Obesity_Level == 'Normal_Weight' | Obesity_Level == 'Obesity_Type_III')
+classData$Obesity_Level <- as.factor(as.character(classData$Obesity_Level))
+summary(classData)
+str(classData)
+
+#----------
+# set seed to make the partition reproducible
+set.seed(17)
+trainIndex <- sample(seq_len(nrow(classData)), size = floor(0.7 * nrow(classData)))
+trainSet <- classData[trainIndex, ]
+testSet <- classData[-trainIndex, ]
+
+# Buidling the Predictive Models
+fitModel1 <- rpart::rpart(
+  Obesity_Level ~ Age + Physical_Activity_Frequency + Overweight_Family_History,
+  data = trainSet, 
+  method = "class",
+  maxdepth = 10,
+  parms = list(split = 'information')
+)
+
+fitModel2 <- rpart(
+  Obesity_Level ~  Daily_Water_Consumption + Number_of_main_meals + Alcohol_Consumption,
+  data = trainSet, 
+  method = "class",
+  maxdepth = 10,
+  parms = list(split = 'information')
+)
+
+#Plotting the trees
+par(mfrow=c(1,2))
+rpart.plot::rpart.plot(fitModel1, type = 4, extra = 1)
+rpart.plot::rpart.plot(fitModel2, type = 4, extra = 1)
+
+```
+
+
+
+##Clustering
+```{r}
+library(klaR)
+library(cluster)
+
+lstPackages <- c('klaR', 'cluster')
+lapply(lstPackages, library, character.only = TRUE)
+
+clustModel <- klaR::kmodes(sampleData, modes = 7)
+cluster::clusplot(sampleData, clustModel$cluster, color=TRUE,  shade=TRUE)
+
+
+cluster.output <- cbind(sampleData, clustModel$cluster)
+table(cluster.output$`clustModel$cluster`)
+table(sampleData$Obesity_Level,clustModel$cluster)
+```
